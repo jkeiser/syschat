@@ -54,12 +54,6 @@ These don't affect features directly, but do affect the development and operatio
   server (just ship the executable), and remove its dependency on the filesystem as well,
   simplifying management further.
 
-Features / Design
------------------
-
-These are some of the major features and design decisions, tradeoffs, and things that I might have
-done if I had more time.
-
 * **The server stores all message history as an array in memory.**
 
   This is in the spec, but the real reason is limited dev time: getting persistence right (and
@@ -76,6 +70,12 @@ done if I had more time.
   
   This could also be mitigated without adding persistence by implementing a limit and destroying the
   oldest messages when it would grow above that limit.
+
+Features / Design
+-----------------
+
+These are some of the major features and design decisions, tradeoffs, and things that I might have
+done if I had more time.
 
 * **The client loads all messages on startup.**
 
