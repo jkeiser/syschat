@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::SystemTime};
 use axum::{
-    extract::{Query, State}, response::IntoResponse, routing::{get, post}, Router
+    extract::State, response::IntoResponse, routing::{get, post}, Router
 };
 use axum_extra::response::ErasedJson;
 use tokio::sync::RwLock;
@@ -21,11 +21,17 @@ async fn main() {
 
 fn app() -> Router {
     Router::new()
+
         // GET /messages gets all messages.
         .route("/messages", get(list_messages))
+
         // POST /messages sends a new message.
         .route("/messages", post(send_message))
+
+        // GET / returns the client (and any other static files from the client).
         .fallback_service(ServeDir::new("client/build/"))
+
+        // Stores the state
         .with_state(Arc::new(RwLock::new(MessageBoard::default())))
         .layer(TraceLayer::new_for_http())
 }
@@ -48,14 +54,9 @@ struct Message {
 
 /// List all messages (optionally starting from a known number).
 async fn list_messages(
-    Query(params): Query<ListMessagesParams>,
     State(state): State<Arc<RwLock<MessageBoard>>>
 ) -> impl IntoResponse {
     let messages = &state.read().await.messages;
-
-    // Cap the message ID to prevent out of bounds access panics. Asking for messages above 100 when
-    // there are only 2 messages should yield an empty list.
-    let first_message_id = params.first_message_id.min(messages.len());
 
     // NOTE: We use ErasedJson() to proactively serialize the response instead of the lazy Json()
     // usually returned from axum handlers. This is because the messages are behind a lock and are
@@ -63,14 +64,7 @@ async fn list_messages(
     //
     // Making this actually lazy would still be good, but probably involves a custom Serialize or
     // IntoResponse implementation.
-    ErasedJson::new(&messages[first_message_id..])
-}
-
-#[derive(Deserialize)]
-struct ListMessagesParams {
-    /// First message ID to get. Starts from this point. Defaults to 0.
-    #[serde(default)]
-    first_message_id: usize,
+    ErasedJson::new(&messages)
 }
 
 /// Post a message to the board.
@@ -79,7 +73,9 @@ async fn send_message(
     message: String
 ) -> impl IntoResponse {
     // Take a write lock so we can add the message.
-    state.write().await.messages.push(Message { timestamp: SystemTime::now(), message });
+    let messages = &mut state.write().await.messages;
+    // Add the message to the top of the list.
+    messages.push(Message { timestamp: SystemTime::now(), message });
 }
 
 
