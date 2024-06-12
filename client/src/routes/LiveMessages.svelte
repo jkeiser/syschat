@@ -6,7 +6,7 @@
     async function updateMessages() {
         let response = await fetch(`/messages`); // ?first_message_id=${messages.length}
         if (!response.ok) { throw response.statusText; }
-        messages = await response.json();
+        messages = [...await response.json()].reverse(); // Most recent first
         console.log(`Fetched ${messages.length} messages.`)
     }
 
