@@ -101,6 +101,8 @@ done if I had more time.
   connection and HTTP GET each second, headers included. A web socket only needs a periodic
   heartbeat to keep the connection alive.
 
+  (NOTE: I had actually coded this last solution initially, but backed off it to simplify when I was debugging an issue with vite dev mode not updating the messages variable. This one bugs me enough that I might go back in and do it if I find 20 minutes tonight. Websockets would be better but are likely to bring in lots of new bugs to smash, particularly around concurrency.)
+
   This could also be mitigated by implementing pagination and polling for all visible messages, but
   on top of the TCP and HTTP overhead, constantly reloading even 10 messages can add up if there are
   a lot of clients.
@@ -141,7 +143,9 @@ done if I had more time.
 
 * **The "send message" box is disabled while sending.**
 
-  This prevents jamming the send button over and over.
+  This prevents jamming the send button over and over. We also clear the text box when it has successfully sent to make it obvious the message is sent, preventing the user from sending it again.
+
+  We could have just cleared the message in the first place instead of disabling, which would have had the same effect, but then if the message *failed* to send it would just get lost forever. This way you get another try on failure.
 
 * **New messages do not show up immediately after sending.**
 
