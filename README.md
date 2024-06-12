@@ -11,6 +11,21 @@ Run this (prerequisites: [Rust](https://www.rust-lang.org/tools/install) and [No
 
 And open your browser to [http://localhost:3000](http://localhost:3000).
 
+Project Structure
+-----------------
+
+The most important source files in the project: 
+
+* `build.rs`: this runs `npm run build` when you `cargo build`
+* `src/main.rs`: web and API server
+  - `app()` defines routes and `fallback_handler` serves web client files
+  - `list_messages` and `send_message` implement API endpoints
+  - `Arc<RwLock<MessageBoard` stores state, wrapped in an `Arc<RwLock>>` for safe concurrent access to the `Vec<Message>` liat
+* `src/tests.rs`: API tests run during `cargo test`
+* `client/routes/+page.svelte`: web client served as `/`
+* `client/routes/NewMessage.svelte`: "send message" UI and implementation
+* `client/routes/Live messages.svelte`: shows messages and keeps them up to date
+
 Tech Decisions
 --------------
 
@@ -70,6 +85,12 @@ These don't affect features directly, but do affect the development and operatio
   
   This could also be mitigated without adding persistence by implementing a limit and destroying the
   oldest messages when it would grow above that limit.
+
+  * Many concurrent reads, one write at a time, mediated by `Arc<RwLock<MessageBoard>>`.
+
+    RwLock prevents reading existing messages while adding a new one, and prevents concurrent writes.
+
+    **If I had more time,** I would move to an append-only list designed for concurrent access, allowing reads to access existing messages while writes are in flight. For this purpose, since old messages never die or change, we might even be able to use a list of fixed size message arrays, so that the arrays never move once created (which is why reads cannot access a Vec while it grows). There are nuances to solve, but it seems like it could work. (I know there are definitely existing Rust modules to do this out there, too!)
 
 Features / Design
 -----------------
