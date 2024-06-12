@@ -86,11 +86,11 @@ These don't affect features directly, but do affect the development and operatio
   This could also be mitigated without adding persistence by implementing a limit and destroying the
   oldest messages when it would grow above that limit.
 
-  * Many concurrent reads, one write at a time, mediated by `Arc<RwLock<MessageBoard>>`.
+* Many concurrent reads, one write at a time, mediated by `Arc<RwLock<MessageBoard>>`.
 
-    RwLock prevents reading existing messages while adding a new one, and prevents concurrent writes.
+  RwLock prevents reading existing messages while adding a new one, and prevents concurrent writes.
 
-    **If I had more time,** I would move to an append-only list designed for concurrent access, allowing reads to access existing messages while writes are in flight. For this purpose, since old messages never die or change, we might even be able to use a list of fixed size message arrays, so that the arrays never move once created (which is why reads cannot access a Vec while it grows). There are nuances to solve, but it seems like it could work. (I know there are definitely existing Rust modules to do this out there, too!)
+  **If I had more time,** I would move to an append-only list designed for concurrent access, allowing reads to access existing messages while writes are in flight. For this purpose, since old messages never die or change, we might even be able to use a list of fixed size message arrays, so that the arrays never move once created (which is why reads cannot access a Vec while it grows). There are nuances to solve, but it seems like it could work. (I know there are definitely existing Rust modules to do this out there, too!)
 
 Features / Design
 -----------------
