@@ -86,7 +86,7 @@ These don't affect features directly, but do affect the development and operatio
   This could also be mitigated without adding persistence by implementing a limit and destroying the
   oldest messages when it would grow above that limit.
 
-* Many concurrent reads, one write at a time, mediated by `Arc<RwLock<MessageBoard>>`.
+* **Many concurrent reads, one write at a time, mediated by `Arc<RwLock<MessageBoard>>`.**
 
   RwLock prevents reading existing messages while adding a new one, and prevents concurrent writes.
 
