@@ -4,10 +4,13 @@
 
     // Poll the server for new messages every second
     async function updateMessages() {
-        let response = await fetch(`/messages`); // ?first_message_id=${messages.length}
+        let response = await fetch(`/messages?first_message_id=${messages.length}`);
         if (!response.ok) { throw response.statusText; }
-        messages = [...await response.json()].reverse(); // Most recent first
-        console.log(`Fetched ${messages.length} messages.`)
+        const newMessages = await response.json();
+        if (newMessages.length > 0) {
+            console.log(`Fetched ${messages.length} new messages.`)
+            messages = [...newMessages.reverse(), ...messages]; // Most recent first
+        }
     }
 
     setInterval(updateMessages, 1000);

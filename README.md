@@ -30,11 +30,6 @@ The most significant tradeoffs here are:
    increases the network and compute load. If there was one thing that should be done differently with
    more time, this would be it.
 
-   I also have it returning all messages on each poll, which really sucks. I originally had it doing
-   this, but backed it out to simplify while debugging the live reloading issue. This one is annoying
-   enough to me (and simple enough to fix) that I might go back and fix it tonight if I find 20
-   minutes.
-
 2. No end to end tests. Tests are at the API level. E2E tests are really important for actually
    knowing if your application works, and is probably the other big thing I'd want to do before
    feeling like this was truly "done" for what it is. However, E2E tests are notoriously finicky to
@@ -149,26 +144,18 @@ done if I had more time.
   The alternative design would be to show only new messages, but that means knowing nothing about
   what anyone else has ever said, possibly repeating stuff, and having nothing to respond to.
 
-* **The client updates live by pulling all messages from the server once per second.**
+* **The client updates live by pulling new messages from the server once per second.**
 
   Live updates for new messages is more engaging and less annoying to the user than hitting reload
   over and over.
 
-  Retrieving all the messages each second will become a network and compute hog as the number of
-  messages grows, and it is completely unnecessary to re-send the same messages over and over
-  again: the client already knows about them!
+  The polling method, however, means updates are delayed. It also costs a lot more network than a
+  web socket, as you have to do an entire back-and-forth TCP connection and HTTP GET each second,
+  headers included, even if there are no new messages. A web socket only needs a periodic heartbeat
+  to keep the connection alive and you can just send new data as it arrives.
 
   **If I had more time,** I would serve live message updates over a web socket and only listen for
   new messages after the initial load.
-
-  A lesser solution would be to poll, but ask for only new messages since the last poll. This can
-  still be a lot more expensive than a web socket, as you have to do an entire back-and-forth TCP
-  connection and HTTP GET each second, headers included. A web socket only needs a periodic
-  heartbeat to keep the connection alive.
-
-  This could also be mitigated by implementing pagination and polling for all visible messages, but
-  on top of the TCP and HTTP overhead, constantly reloading even 10 messages can add up if there are
-  a lot of clients.
 
 * **Newest messages are at the top.**
 
@@ -182,12 +169,7 @@ done if I had more time.
   all elements will compare different! (Svelte probably worried about this too, so maybe it's not
   an issue.)
 
-  It doesn't help that due to the polling pulling every message, the new messages don't have the
-  same identity as their old counterparts.
-
-  **If I had more time,** I would definitely have changed it so that only new messages are added,
-  making the individual messages retain object identity and giving Svelte a better chance of keeping
-  the DOM around. I'd also have investigated Svelte at some point to see whether this is actually
+  **If I had more time,** I'd have investigated Svelte at some point to see whether this is actually
   causing massive DOM upheaval or not. At the very least, it's something I need to know to be able
   to write good Svelte code!
 
@@ -209,9 +191,13 @@ done if I had more time.
 
 * **The "send message" box is disabled while sending.**
 
-  This prevents jamming the send button over and over. We also clear the text box when it has successfully sent to make it obvious the message is sent, preventing the user from sending it again.
+  This prevents jamming the send button over and over. We also clear the text box when it has
+  successfully sent to make it obvious the message is sent, preventing the user from sending it
+  again.
 
-  We could have just cleared the message in the first place instead of disabling, which would have had the same effect, but then if the message *failed* to send it would just get lost forever. This way you get another try on failure.
+  We could have just cleared the message in the first place instead of disabling, which would have
+  had the same effect, but then if the message *failed* to send it would just get lost forever. This
+  way you get another try on failure.
 
 * **New messages do not show up immediately after sending.**
 

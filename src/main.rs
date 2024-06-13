@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::SystemTime};
 use axum::{
-    extract::State, response::IntoResponse, routing::{get, post}, Router
+    extract::{Query, State}, response::IntoResponse, routing::{get, post}, Router
 };
 use axum_extra::response::ErasedJson;
 use tokio::sync::RwLock;
@@ -52,19 +52,29 @@ struct Message {
     message: String,
 }
 
+#[derive(Deserialize)]
+struct ListMessagesParams {
+    /// Return only messages with this ID or later (defaults to 0 or "all").
+    #[serde(default)]
+    first_message_id: usize,
+}
+
 /// List all messages (optionally starting from a known number).
 async fn list_messages(
+    Query(params): Query<ListMessagesParams>,
     State(state): State<Arc<RwLock<MessageBoard>>>
 ) -> impl IntoResponse {
     let messages = &state.read().await.messages;
 
+    // Cap first_message_id at messages.len() to avoid out-of-bounds access panicking.
+    let first_message_id = params.first_message_id.min(messages.len());
     // NOTE: We use ErasedJson() to proactively serialize the response instead of the lazy Json()
     // usually returned from axum handlers. This is because the messages are behind a lock and are
     // no longer accessible once list_messages() returns (which is when Json() does the serialization).
     //
     // Making this actually lazy would still be good, but probably involves a custom Serialize or
     // IntoResponse implementation.
-    ErasedJson::new(&messages)
+    ErasedJson::new(&messages[first_message_id..])
 }
 
 /// Post a message to the board.
