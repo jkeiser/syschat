@@ -26,7 +26,7 @@
 <style>
     .newmessage {
         display: flex;
-        margin-top: 1em;
+        margin-bottom: 1em;
     }
 
     .newmessage input {
