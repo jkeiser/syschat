@@ -11,6 +11,40 @@ Run this (prerequisites: [Rust](https://www.rust-lang.org/tools/install) and [No
 
 And open your browser to [http://localhost:3000](http://localhost:3000).
 
+Overview
+--------
+
+One or more users can open up Svelte web clients, send messages, and see all messages anyone else
+sends (or has ever sent). Messages are managed in memory in a Rust+Axum API server. Clients poll
+periodically for new messages.
+
+An apparent Svelte live reloading bug cost me a good bit of time as well, forcing one or two
+tradeoffs that I might not have had to make otherwise. I am still happy with the resulting codebase,
+though. When time gets short you make a *smaller* thing you are proud of, not a bigger thing that
+doesn't work.
+
+The most significant tradeoffs here are:
+
+1. The decision for clients to poll periodically for new messages rather than receive live updates
+   immediately through a websocket. This decision impacts the perceived speed of the application, and
+   increases the network and compute load. If there was one thing that should be done differently with
+   more time, this would be it.
+
+   I also have it returning all messages on each poll, which really sucks. I originally had it doing
+   this, but backed it out to simplify while debugging the live reloading issue. This one is annoying
+   enough to me (and simple enough to fix) that I might go back and fix it tonight if I find 20
+   minutes.
+
+2. No end to end tests. Tests are at the API level. E2E tests are really important for actually
+   knowing if your application works, and is probably the other big thing I'd want to do before
+   feeling like this was truly "done" for what it is. However, E2E tests are notoriously finicky to
+   get stable and not recommended for a 4-hour tour.
+
+3. There is also a potential injection attack. This very possibly isn't real, but we can't ship
+   without knowing for sure and hardening against it.
+
+More detailed information on all these tradeoffs comes in the next few sections.
+
 Project Structure
 -----------------
 
@@ -20,7 +54,7 @@ The most important source files in the project:
 * `src/main.rs`: web and API server
   - `app()` defines routes and `fallback_handler` serves web client files
   - `list_messages` and `send_message` implement API endpoints
-  - `Arc<RwLock<MessageBoard` stores state, wrapped in an `Arc<RwLock>>` for safe concurrent access to the `Vec<Message>` liat
+  - `Arc<RwLock<MessageBoard` stores state, wrapped in an `Arc<RwLock>>` for safe concurrent access to the `Vec<Message>` list
 * `src/tests.rs`: API tests run during `cargo test`
 * `client/routes/+page.svelte`: web client served as `/`
 * `client/routes/NewMessage.svelte`: "send message" UI and implementation
@@ -38,10 +72,11 @@ These don't affect features directly, but do affect the development and operatio
   it's important to pick techs your team will be comfortable with. But I really like the compiled
   approach Svelte takes and wanted to explore it a little more :)
 
-  This decision did cost me a couple of hours on what seems like a bug in vite+svelte's live
-  reloading experience (but could definitely still be something I don't understand, I'm not an old
-  hand at Svelte!). Compiling statically and using the served files instead of the live debugging
-  experience was how I got around that.
+  This decision to use Svelte did cost me a couple of hours on what seems like a bug: reactivity
+  seemed to stop working almost immediately after loading, and async fetches to get more messages
+  would return but not update the UI. Eventually I narrowed it down to vite+svelte's live reloading
+  development server, and abandoned that in favor of using static compiled JS files, which let me
+  move forward.
 
 * **Rust for backend.**
 
@@ -64,7 +99,7 @@ These don't affect features directly, but do affect the development and operatio
   for simpler service packaging and management, and allows us to avoid CORS issues talking from
   frontend to backend since they are the same origin.
   
-  **If I had more time,** I would compile the static files into the executable rather than require
+  It would be slightly better to compile the static files into the executable rather than require
   them to be in a specific place on the drive. This would vastly simplify the deployment of the
   server (just ship the executable), and remove its dependency on the filesystem as well,
   simplifying management further.
@@ -79,18 +114,27 @@ These don't affect features directly, but do affect the development and operatio
   messages) next time. We already accept that the server will lose all messages on restart due to
   the in-memory design, and this is just one more way that can happen.
 
-  **If I had more time,** I would persist messages and only keep recent messages in memory, allowing
-  a much larger message limit (theoretically, everything runs out, it just depends how long you
-  wait).
+  Ultimately if this were shipping, persistence would be a requirement. Doing it right would allow a
+  much larger message limit as a side effect (though theoretically, everything runs out, it just
+  depends how long you wait).
   
-  This could also be mitigated without adding persistence by implementing a limit and destroying the
+  The problem could be mitigated without persistence by implementing a limit and destroying the
   oldest messages when it would grow above that limit.
 
 * **Many concurrent reads, one write at a time, mediated by `Arc<RwLock<MessageBoard>>`.**
 
-  RwLock prevents reading existing messages while adding a new one, and prevents concurrent writes.
+  `RwLock` prevents reading existing messages while adding a new one, and prevents concurrent writes.
+  
+  It's hard to see this truly impacting the application given the low (for a computer) rate of
+  messages sent. Theoretically at really heavy scale there could be high lock contention, causing
+  high latency and other nasty things like CPU spinning. However, the only time the application will
+  lock for more than a few instructions is when the messages vector is grown, which happens
+  infrequently unless messages are sent at a rate too fast for any user to follow.
 
-  **If I had more time,** I would move to an append-only list designed for concurrent access, allowing reads to access existing messages while writes are in flight. For this purpose, since old messages never die or change, we might even be able to use a list of fixed size message arrays, so that the arrays never move once created (which is why reads cannot access a Vec while it grows). There are nuances to solve, but it seems like it could work. (I know there are definitely existing Rust modules to do this out there, too!)
+  If it's cheap though, it's worth doing. There are Rust packages that provide append-only lock-free
+  lists that allow reads (and sometimes writes) to proceed without any locking at all. To the extent
+  one of these is well-tested and can be dropped in cheaply, it will save at least a few
+  instructions on every read, which *does* happen frequently.
 
 Features / Design
 -----------------
@@ -122,8 +166,6 @@ done if I had more time.
   connection and HTTP GET each second, headers included. A web socket only needs a periodic
   heartbeat to keep the connection alive.
 
-  (NOTE: I had actually coded this last solution initially, but backed off it to simplify when I was debugging an issue with vite dev mode not updating the messages variable. This one bugs me enough that I might go back in and do it if I find 20 minutes tonight. Websockets would be better but are likely to bring in lots of new bugs to smash, particularly around concurrency.)
-
   This could also be mitigated by implementing pagination and polling for all visible messages, but
   on top of the TCP and HTTP overhead, constantly reloading even 10 messages can add up if there are
   a lot of clients.
@@ -143,8 +185,11 @@ done if I had more time.
   It doesn't help that due to the polling pulling every message, the new messages don't have the
   same identity as their old counterparts.
 
-  **If I had more time,** I would have investigated Svelte to see whether this is causing massive
-  DOM upheaval. Then decided what to do about that, if anything.
+  **If I had more time,** I would definitely have changed it so that only new messages are added,
+  making the individual messages retain object identity and giving Svelte a better chance of keeping
+  the DOM around. I'd also have investigated Svelte at some point to see whether this is actually
+  causing massive DOM upheaval or not. At the very least, it's something I need to know to be able
+  to write good Svelte code!
 
 * **Sending a message accepts arbitrary text.**
 
@@ -177,21 +222,22 @@ done if I had more time.
   user's awareness isn't laser focused on an action they just took.
 
   **If I had more time,** I would mitigate this by triggering a poll as soon as you send a message.
+  It would require some frontend code restructuring so that NewMessage.svelte has access to kick off
+  a poll, but ultimately is very doable.
+
   If there was a considerable network delay it would be worth mitigating further by showing a "fake"
   version of your message until the poll comes in and shows it. (This is a typical UI strategy since
   this is such a big problem.)
 
-**If I had more time,** I would also look into these features at the very least:
+Other Possible Features
+-----------------------
 
-* UI polish. The Vite+Svelte live reloading things cost me a lot of polish time! I'm not sad about
-  the current UI, and think it's pretty reasonable for a place for people to leave "notes." One
-  thing I'd like to see is new messages to "pop" more, briefly showing bolded or outlined or colored
-  for a bit so you notice them more.
+Other features and tasks that might be worth doing:
+
 * Authentication, nicknames and non-anonymity. Not all message boards need these, and some actively
   discourage them, but it's a feature that should be explicitly thought about.
 * Threading, if conversations become a thing.
 * Multiple message boards in a single server.
-* Everything noted in the previous section.
 
 Developing
 ----------
