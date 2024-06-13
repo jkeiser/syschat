@@ -3,13 +3,11 @@ Syschat is an ultra-simple anonymous message board.
 Quickstart
 ----------
 
-Run this (prerequisites: [Rust](https://www.rust-lang.org/tools/install) and [Node](https://nodejs.org/en/download/)):
-
   ```sh
   cargo run
   ```
 
-And open your browser to [http://localhost:3000](http://localhost:3000).
+And open your browser to [http://localhost:3000](http://localhost:3000). Prerequisites: [Rust](https://www.rust-lang.org/tools/install) and [Node](https://nodejs.org/en/download/).
 
 Overview
 --------
