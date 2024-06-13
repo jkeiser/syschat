@@ -1,5 +1,7 @@
 Syschat is an ultra-simple anonymous message board.
 
+<img width=200 src="screenshot.png">
+
 Quickstart
 ----------
 
